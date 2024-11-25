@@ -8,7 +8,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_log_error
 import plotly.express as px
-from tensorflow.keras.models import load_model
+# from tensorflow.keras.models import load_model
 
 # Configuração inicial
 st.title("Previsão de Preços de Casas")
