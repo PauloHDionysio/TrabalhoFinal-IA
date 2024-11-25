@@ -6,20 +6,12 @@ import tensorflow as tf
 from sklearn.preprocessing import MaxAbsScaler
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_log_error
 import plotly.express as px
-# from tensorflow.keras.models import load_model
 
 # Configuração inicial
 st.title("Previsão de Preços de Casas")
 st.subheader("Trabalho Final de Inteligência Artificial")
 st.write("Aluno: Paulo Henrique Dionysio | RA: 221026169")
-
-# Navegação
-menu = st.sidebar.radio(
-    "Selecione a função de ativação para o modelo:",
-    ("ReLU", "Sigmoid", "Tanh")
-)
 
 # Função para carregar e preparar os dados
 @st.cache
@@ -77,23 +69,16 @@ if treino_file and teste_file:
     st.write("Amostra dos Dados de Treino:")
     st.write(dados_treino.head())
 
-    # Configuração do modelo
-    if menu == "ReLU":
-        ativacao = "relu"
-    elif menu == "Sigmoid":
-        ativacao = "sigmoid"
-    else:  # Tanh
-        ativacao = "tanh"
-
-    if st.button(f"Treinar Modelo com {ativacao}"):
+    # Treinando o modelo com ReLU
+    if st.button("Treinar Modelo"):
         tf.random.set_seed(2)
 
-        # Construindo a rede neural
+        # Construindo a rede neural com ReLU
         inp = tf.keras.layers.Input((Xtr.shape[1],))
-        hid1 = tf.keras.layers.Dense(100, activation=ativacao)(inp)
+        hid1 = tf.keras.layers.Dense(100, activation="relu")(inp)
         drop = tf.keras.layers.Dropout(0.5)(hid1)
-        hid2 = tf.keras.layers.Dense(50, activation=ativacao)(drop)
-        hid3 = tf.keras.layers.Dense(25, activation=ativacao)(hid2)
+        hid2 = tf.keras.layers.Dense(50, activation="relu")(drop)
+        hid3 = tf.keras.layers.Dense(25, activation="relu")(hid2)
         out = tf.keras.layers.Dense(1, activation="relu")(hid3)
 
         mdl = tf.keras.Model(inp, out)
@@ -103,31 +88,55 @@ if treino_file and teste_file:
         )
 
         # Treinando o modelo
-        with st.spinner(f"Treinando o modelo com {ativacao}, aguarde..."):
+        with st.spinner(f"Treinando o modelo com ReLU, aguarde..."):
             history = mdl.fit(Xtr, ytr, validation_data=(Xval, yval), epochs=100, shuffle=True, batch_size=1, callbacks=[es])
 
         st.session_state["model"] = mdl
-        st.success(f"Modelo treinado com sucesso usando {ativacao}!")
+        st.success("Modelo treinado com sucesso!")
 
-        # Gerando gráfico de treino e validação
+        # Gráfico de Perda durante o Treinamento
         st.write("Gráfico de Perda durante o Treinamento:")
-        fig = px.line(
+        fig1 = px.line(
             x=range(len(history.history["loss"])),
             y=[history.history["loss"], history.history["val_loss"]],
             labels={"x": "Épocas", "y": "Perda"},
             title="Perda de Treinamento vs Validação"
         )
-        fig.update_traces(mode="lines+markers")
-        fig.update_layout(
-            legend=dict(
-                title=dict(text="Tipo de Perda"),
-                orientation="h",  # Alinha a legenda horizontalmente
-                font=dict(size=12, color="black"),
-                x=0.5,  # Centraliza a legenda horizontalmente
-                xanchor="center",
-                y=-0.2  # Move a legenda para fora da área do gráfico
+        fig1.update_yaxes(type="log")  # Escala logarítmica para maior clareza
+        st.plotly_chart(fig1)
+
+    # Adicionando previsão e gráficos
+    if st.button("Prever Preços das Casas e Gerar Gráficos"):
+        if st.session_state["model"] is None:
+            st.error("Por favor, treine o modelo primeiro!")
+        else:
+            teste1 = teste_num.drop(["Id", "SalePrice"], axis=1)
+            teste = scaler.transform(imputer.transform(teste1))
+            p_val = st.session_state["model"].predict(Xval).squeeze()
+
+            # Gráfico de comparação: valores reais vs previstos
+            st.write("Comparação entre Valores Reais e Previstos:")
+            comparacao = pd.DataFrame({"Reais": yval, "Previstos": p_val})
+            fig2 = px.scatter(
+                comparacao,
+                x="Reais",
+                y="Previstos",
+                title="Valores Reais vs Previstos",
+                labels={"x": "Valores Reais", "y": "Valores Previstos"}
             )
-        ) # Atualiza o layout do gráfico
+            fig2.update_traces(marker=dict(size=5, opacity=0.7))
+            st.plotly_chart(fig2)
+
+            # Gráfico de distribuição dos resíduos
+            st.write("Distribuição dos Resíduos:")
+            residuos = yval - p_val
+            fig3 = px.histogram(
+                residuos,
+                nbins=50,
+                title="Distribuição dos Resíduos",
+                labels={"value": "Resíduos", "count": "Frequência"}
+            )
+            st.plotly_chart(fig3)
 
 
     # Prevendo com os dados de teste
@@ -138,11 +147,11 @@ if treino_file and teste_file:
             teste1 = teste_num.drop(["Id", "SalePrice"], axis=1)
             teste = scaler.transform(imputer.transform(teste1))
             p_teste = st.session_state["model"].predict(teste).squeeze()
-            resultados = pd.DataFrame({"Id": teste_num["Id"], "SalePrice": p_teste})
+            resultados = pd.DataFrame({"Id": dados_teste["Id"], "SalePrice": p_teste})
 
-            st.write("Distribuição das Previsões de Preços:")
-            hist_fig = px.histogram(resultados, x="SalePrice", title="Distribuição de Previsões de Preços")
+            st.write("Previsões dos Preços das Casas:")
+            hist_fig = px.histogram(resultados, x="SalePrice", title="Previsões dos Preços das Casas")
             st.plotly_chart(hist_fig)
 
             csv = resultados.to_csv(index=False)
-            st.download_button("Baixar Previsões", csv, "previsoes.csv", "text/csv")
+            st.download_button("Clique para baixar as previsões", csv, "resultados.csv", "csv")
